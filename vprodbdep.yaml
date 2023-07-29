@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vpro-db
+  labels:
+    app: vpro-db
+spec:
+  selector:
+    matchLabels:
+      app: vpro-db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vprodb
+    spec:
+      containers:
+        - name: vpro-db
+          image: sandmanad/vprofiledb:latest
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: vpro-db-data
+          ports:
+            - name: vpro-db-port
+              containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: db-pass
+      nodeSelector:
+        zone: us-east-1a
+      volumes:
+        - name: vpro-db-data
+          awsElasticBlockStore:
+            volumeID: vol-07462cc63246c296c
+            fsType: ext4
+
+      #when you create volume with ext4 it will also create a folder
+      #lost+found there
+      #but if the dir is not empty the mysql service will not start
+      #so you need to create one more container that starts before the
+      #mysql and deletes lost+found folder
+
+      initContainers:
+        - name: busybox
+          image: busybox:latest
+          args: ["rm", "-rf", "/var/lib/mysql/lost+found"]
+          volumeMounts:
+            - name: vpro-db-data
+              mountPath: /var/lib/mysql
+
